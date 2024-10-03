@@ -4,8 +4,6 @@ library(ggplot2)
 library(tidyr)
 library(dplyr)
 library(nls2)
-library(lme4)
-library(lmerTest)
 
 # Clean the environment
 rm(list = ls())
@@ -19,23 +17,36 @@ kelp_data <- read_sheet("https://docs.google.com/spreadsheets/d/1FHVlBrssyievdxx
 # Remove rows with NA values in the relevant columns for weight calculations
 kelp_data_weight <- na.omit(kelp_data[, c("stipe_distance_mm", "species",
                                           "weight1_g", "weight2_g", 
-                                          "weight3_g")])
+                                          "weight3_g", "label")])
 
-## Plot 1 - Weight reduction by time and divided into groups based on stipe distances
-
-# Calculate weight reduction at each time point
+# Add Day 0 to the dataset (initial weight is weight1_g)
 kelp_data_weight <- kelp_data_weight %>%
   mutate(
-    weight_red_second = (weight2_g - weight1_g) / weight1_g * 100,    # Weight reduction between first and second measurement
-    weight_red_final = (weight3_g - weight1_g) / weight1_g * 100      # Weight reduction between first and final measurement
+    weight_raw_initial = weight1_g,  # Initial weight
+    weight_raw_second = weight2_g,   # Second weight
+    weight_raw_final = weight3_g,    # Final weight
+    weight_red_initial = 0,  # No reduction at Day 0 (initial measurement)
+    weight_red_second = (weight2_g - weight1_g) / weight1_g * 100,    # Weight reduction between first and second measurement (percent)
+    weight_red_final = (weight3_g - weight1_g) / weight1_g * 100      # Weight reduction between first and final measurement (percent)
   )
 
-# Reshape the data to long format
-kelp_long_weight <- kelp_data_weight %>%
-  pivot_longer(cols = c(weight_red_second, weight_red_final), 
+# Reshape the data to long format for raw weight values
+kelp_long_weight_raw <- kelp_data_weight %>%
+  pivot_longer(cols = c(weight_raw_initial, weight_raw_second, weight_raw_final), 
+               names_to = "time", 
+               values_to = "weight_raw") %>%
+  mutate(time = recode(time, 
+                       "weight_raw_initial" = "Day 0",
+                       "weight_raw_second" = "Day 4",
+                       "weight_raw_final" = "Day 7"))
+
+# Reshape the data to long format for percentage weight reduction
+kelp_long_weight_percent <- kelp_data_weight %>%
+  pivot_longer(cols = c(weight_red_initial, weight_red_second, weight_red_final), 
                names_to = "time", 
                values_to = "weight_reduction") %>%
   mutate(time = recode(time, 
+                       "weight_red_initial" = "Day 0",
                        "weight_red_second" = "Day 4",
                        "weight_red_final" = "Day 7"))
 
@@ -44,12 +55,28 @@ species_colors <- c("L. digitata" = "brown1",
                     "L. hyperborea" = "forestgreen", 
                     "S. latissima" = "cornflowerblue")
 
-# Create the faceted growth plot for Weight reduction
-p1 <- ggplot(kelp_long_weight, aes(x = time, y = weight_reduction, group = species, color = species)) +
+# Plot 1: Raw weight over time
+p1 <- ggplot(kelp_long_weight_raw, aes(x = time, y = weight_raw, group = species, color = species)) +
   geom_point(size = 3, alpha = 0.7) +  # Points for each sample
   geom_smooth(method = "lm", se = FALSE, linetype = "solid") +  # Trendline without confidence interval
   facet_wrap(~ stipe_distance_mm, scales = "free", labeller = as_labeller(function(x) paste0(x, " mm"))) +  # Group plots by stipe distance
-  labs(title = "Weight reduction by stipe distance",
+  labs(title = "Weight loss over time",
+       x = "Time (days)", 
+       y = "Weight (g)",
+       color = "Species") +
+  scale_color_manual(values = species_colors) +  # Set specific colors for species
+  theme_minimal(base_size = 14) +  
+  theme(legend.position = "top", 
+        strip.background = element_blank())
+
+print(p1)
+
+# Plot 2: Percentage weight reduction over time
+p2 <- ggplot(kelp_long_weight_percent, aes(x = time, y = weight_reduction, group = species, color = species)) +
+  geom_point(size = 3, alpha = 0.7) +  # Points for each sample
+  geom_smooth(method = "lm", se = FALSE, linetype = "solid") +  # Trendline without confidence interval
+  facet_wrap(~ stipe_distance_mm, scales = "free", labeller = as_labeller(function(x) paste0(x, " mm"))) +  # Group plots by stipe distance
+  labs(title = "Percentage weight reduction over time",
        x = "Time (days)", 
        y = "Weight reduction (%)",
        color = "Species") +
@@ -59,38 +86,69 @@ p1 <- ggplot(kelp_long_weight, aes(x = time, y = weight_reduction, group = speci
   theme(legend.position = "top", 
         strip.background = element_blank())
 
-print(p1)
+print(p2)
 
-## Plot 2 - Area reduction by time and divided into groups based on stipe distances
+## Area calculations
 
 kelp_data_area <- na.omit(kelp_data[, c("stipe_distance_mm", "species",
                                         "area1_mm2", "area2_mm2", 
-                                        "area3_mm2")])
+                                        "area3_mm2", "label")])
 
-# Calculate area reduction at each time point
+# Add Day 0 to the dataset (initial area is area1_mm2)
 kelp_data_area <- kelp_data_area %>%
   mutate(
-    area_red_second = (area2_mm2 - area1_mm2) / area1_mm2 * 100,    # Area reduction between first and second measurement
-    area_red_final = (area3_mm2 - area1_mm2) / area1_mm2 * 100      # Area reduction between first and final measurement
+    area_raw_initial = area1_mm2,  # Initial area
+    area_raw_second = area2_mm2,   # Second area
+    area_raw_final = area3_mm2,    # Final area
+    area_red_initial = 0,  # No reduction at Day 0 (initial measurement)
+    area_red_second = (area2_mm2 - area1_mm2) / area1_mm2 * 100,    # Area reduction between first and second measurement (percent)
+    area_red_final = (area3_mm2 - area1_mm2) / area1_mm2 * 100      # Area reduction between first and final measurement (percent)
   )
 
-# Reshape the data to long format
-kelp_long_area <- kelp_data_area %>%
-  pivot_longer(cols = c(area_red_second, area_red_final), 
+# Reshape the data to long format for raw area values
+kelp_long_area_raw <- kelp_data_area %>%
+  pivot_longer(cols = c(area_raw_initial, area_raw_second, area_raw_final), 
+               names_to = "time", 
+               values_to = "area_raw") %>%
+  mutate(time = recode(time, 
+                       "area_raw_initial" = "Day 0",
+                       "area_raw_second" = "Day 4",
+                       "area_raw_final" = "Day 7"))
+
+# Reshape the data to long format for percentage area reduction
+kelp_long_area_percent <- kelp_data_area %>%
+  pivot_longer(cols = c(area_red_initial, area_red_second, area_red_final), 
                names_to = "time", 
                values_to = "area_reduction") %>%
   mutate(time = recode(time, 
+                       "area_red_initial" = "Day 0",
                        "area_red_second" = "Day 4",
                        "area_red_final" = "Day 7"))
 
-# Create the faceted growth plot for Area reduction
-p2 <- ggplot(kelp_long_area, aes(x = time, y = area_reduction, group = species, color = species)) +
+# Plot 3: Raw area over time
+p3 <- ggplot(kelp_long_area_raw, aes(x = time, y = area_raw, group = species, color = species)) +
   geom_point(size = 3, alpha = 0.7) +  # Points for each sample
   geom_smooth(method = "lm", se = FALSE, linetype = "solid") +  # Trendline without confidence interval
   facet_wrap(~ stipe_distance_mm, scales = "free", labeller = as_labeller(function(x) paste0(x, " mm"))) +  # Group plots by stipe distance
-  labs(title = "Area reduction by stipe distance",
+  labs(title = "Raw area over time",
        x = "Time (days)", 
-       y = "Area reduction (%)",
+       y = bquote("Area"~(mm^2)),  # Use bquote for correct superscript in mm²
+       color = "Species") +
+  scale_color_manual(values = species_colors) +  # Set specific colors for species
+  theme_minimal(base_size = 14) +  
+  theme(legend.position = "top", 
+        strip.background = element_blank())
+
+print(p3)
+
+# Plot 4: Percentage area reduction over time
+p4 <- ggplot(kelp_long_area_percent, aes(x = time, y = area_reduction, group = species, color = species)) +
+  geom_point(size = 3, alpha = 0.7) +  # Points for each sample
+  geom_smooth(method = "lm", se = FALSE, linetype = "solid") +  # Trendline without confidence interval
+  facet_wrap(~ stipe_distance_mm, scales = "free", labeller = as_labeller(function(x) paste0(x, " mm"))) +  # Group plots by stipe distance
+  labs(title = "Percentage area reduction over time",
+       x = "Time (days)", 
+       y = "Area reduction (%)",  # No mm² here, just percentage
        color = "Species") +
   scale_color_manual(values = species_colors) +  # Set specific colors for species
   scale_y_continuous(limits = c(-100, 0)) +  # Set same y-axis limits
@@ -98,9 +156,9 @@ p2 <- ggplot(kelp_long_area, aes(x = time, y = area_reduction, group = species, 
   theme(legend.position = "top", 
         strip.background = element_blank())
 
-print(p2)
+print(p4)
 
-## Plot 3 - Exponential model for Weight change
+## Plot 5 - Exponential model for Weight change
 
 # Calculate absolute weight change (final weight - initial weight)
 kelp_data <- kelp_data %>%
@@ -123,10 +181,10 @@ if (!is.null(exp_model)) {
   kelp_data$predicted[!is.na(kelp_data$weight_change)] <- predict(exp_model)
   
   # Create the plot with the exponential trendline
-  p3 <- ggplot(kelp_data, aes(x = stipe_distance_mm, y = weight_change)) +
+  p5 <- ggplot(kelp_data, aes(x = stipe_distance_mm, y = weight_change)) +
     geom_point(aes(color = species), size = 3, alpha = 0.7) +  # Points for each sample
     geom_line(aes(y = predicted), color = "black", linetype = "solid", linewidth = 0.6) +  # Exponential trendline
-    labs(title = "Exponential weight reduction",
+    labs(title = "Weight reduction by stipe distance",
          x = "Distance from stipe (mm)", 
          y = "Weight change (g)",
          color = "Species") +
@@ -134,10 +192,10 @@ if (!is.null(exp_model)) {
     theme_minimal(base_size = 14) +  
     theme(legend.position = "top")
   
-  print(p3)
+  print(p5)
 }
 
-## Plot 4 - Exponential model for Area change
+## Plot 6 - Exponential model for Area change
 
 # Calculate absolute area change (final area - initial area)
 kelp_data_area <- kelp_data_area %>%
@@ -159,16 +217,16 @@ if (!is.null(exp_model_area)) {
   kelp_data_area$predicted[!is.na(kelp_data_area$area_change)] <- predict(exp_model_area)  # Assign predictions correctly
   
   # Create the plot with the exponential trendline
-  p4 <- ggplot(kelp_data_area, aes(x = stipe_distance_mm, y = area_change)) +
+  p6 <- ggplot(kelp_data_area, aes(x = stipe_distance_mm, y = area_change)) +
     geom_point(aes(color = species), size = 3, alpha = 0.7) +  # Points for each sample
     geom_line(aes(y = predicted), color = "black", linetype = "solid", linewidth = 0.6) +  # Exponential trendline
-    labs(title = "Exponential Area Reduction",
+    labs(title = "Area reduction by stipe distance",
          x = "Distance from stipe (mm)", 
-         y = "Area change (mm^2)",
+         y = "Area change (mm²)",
          color = "Species") +
     scale_color_manual(values = species_colors) +  # Set specific colors for species
     theme_minimal(base_size = 14) +  
     theme(legend.position = "top")
   
-  print(p4)
+  print(p6)
 }
