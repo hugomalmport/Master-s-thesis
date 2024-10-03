@@ -130,7 +130,7 @@ p3 <- ggplot(kelp_long_area_raw, aes(x = time, y = area_raw, group = species, co
   geom_point(size = 3, alpha = 0.7) +  # Points for each sample
   geom_smooth(method = "lm", se = FALSE, linetype = "solid") +  # Trendline without confidence interval
   facet_wrap(~ stipe_distance_mm, scales = "free", labeller = as_labeller(function(x) paste0(x, " mm"))) +  # Group plots by stipe distance
-  labs(title = "Raw area over time",
+  labs(title = "Area loss over time",
        x = "Time (days)", 
        y = bquote("Area"~(mm^2)),  # Use bquote for correct superscript in mm²
        color = "Species") +
